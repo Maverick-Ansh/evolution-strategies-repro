@@ -76,6 +76,34 @@ def build_runs(which, seeds, es_steps, pg_steps, npairs):
                 runs.append((pg_cmd(env, s, pg_steps, 'fsPG_{}_k{}_s{}'.format(env, k, s),
                                     action_repeat=k),
                              'fsPG_{}_k{}_s{}'.format(env, k, s)))
+    if 'ablation' in which:
+        # C6 (key finding 1): "the use of virtual batch normalization and other
+        #   reparameterizations of the neural network policy (section 2.2) greatly
+        #   improve the reliability of evolution strategies. Without these methods ES
+        #   proved brittle in our experiments"
+        # C7 (Sec. 2.1): antithetic sampling and rank-based fitness shaping.
+        # Plus the paper-vs-code discrepancy from REPORT.md 3.1: Algorithm 1 taken
+        #   literally (plain SGD, and the 1/sigma the released code drops).
+        ARMS = {
+            'base':      {},
+            'noobsnorm': {'no_obs_norm': True},        # C6: drop the MuJoCo analogue of VBN
+            'contact':   {'discretize': 0},            # C6: continuous actions on a discretized env
+            'discact':   {'discretize': 10},           # C6: discretized actions on a continuous env
+            'rawret':    {'shaping': 'raw'},           # C7: no fitness shaping
+            'noanti':    {'no_antithetic': True},      # C7: no mirrored sampling
+            'alg1':      {'optimizer': 'sgd', 'divide_by_sigma': True},  # paper's literal Alg. 1
+        }
+        for env in ['hopper', 'halfcheetah']:
+            for arm, kw in ARMS.items():
+                # 'contact' only means something where bins are on by default, and
+                # 'discact' only where they are off
+                if arm == 'contact' and env not in ('hopper', 'swimmer'):
+                    continue
+                if arm == 'discact' and env in ('hopper', 'swimmer'):
+                    continue
+                for s_ in range(seeds):
+                    tag = 'ab{}_{}_s{}'.format(arm, env, s_)
+                    runs.append((es_cmd(env, s_, es_steps, tag, n_pairs=npairs, **kw), tag))
     if 'delayed' in which:
         # Sec. 3.3: "ES can deal with maximally sparse and delayed rewards"
         for env in ['hopper', 'halfcheetah']:
