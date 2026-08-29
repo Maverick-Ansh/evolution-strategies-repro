@@ -21,11 +21,20 @@ This script measures both. It is probe-free: no learned critic, no auxiliary mod
 training run. We fix one policy theta, vary the horizon T, and directly estimate the
 sampling distribution of each gradient estimator.
 
-Metric: NORMALISED VARIANCE  =  trace(Cov[g]) / ||E[g]||^2.
-This is scale-free, so it is comparable across estimators whose gradients live at
-totally different magnitudes (ES ranks are O(1); REINFORCE scores are O(1/sigma_a^2)).
-It answers the operational question: "how many independent estimates must I average
-before the direction is trustworthy?"
+Two metrics, reported separately and on purpose.
+
+  trace(Cov[g])            -- the paper's own quantity. Sec. 3.1 predicts ~T^1 for policy
+                              gradients and ~T^0 for ES.
+  trace(Cov[g])/||E[g]||^2 -- scale-free, so it is comparable ACROSS estimators whose
+                              gradients live at totally different magnitudes (ES ranks
+                              are O(1), REINFORCE scores are O(1/sigma_a^2)). This is the
+                              operational question: how many independent estimates must
+                              be averaged before the direction is trustworthy?
+
+Keeping them apart matters. A first pass reported only the normalised quantity, measured
+it FALLING as T^-0.20, and would have recorded that as a refutation of Sec. 3.1 -- but the
+denominator ||E[g]||^2 grows with T too, so the normalised number was never a test of the
+paper's claim in the first place.
 
 Fairness: every estimator gets the SAME number of episodes per estimate (`--B`) and the
 same environment, policy and horizon. HalfCheetah is used because it never terminates
@@ -85,10 +94,24 @@ def reinforce_grads(theta, obs, acts, spec, sigma_a):
                                                  jnp.swapaxes(acts, 0, 1))
 
 
-def norm_var(estimates):
-    """trace(Cov) / ||mean||^2 over a stack of (M, D) independent gradient estimates."""
+def var_stats(estimates):
+    """Both quantities, kept separate on purpose.
+
+    The paper's claim is about the RAW variance: "the variance of the policy gradient
+    estimator will grow nearly linearly with T". Reporting only trace(Cov)/||E g||^2
+    answers a different question, because ||E g||^2 also grows with T -- a first pass
+    here measured the normalised quantity FALLING as T^-0.20 and would have recorded a
+    refutation of a claim that had not actually been tested. Both are reported:
+
+      trace_cov  -- the paper's quantity; predicted ~ T^1 for PG, T^0 for ES
+      norm_var   -- trace_cov / ||E g||^2; the operational signal-to-noise a practitioner
+                    cares about, and the only one comparable ACROSS the two estimators,
+                    whose gradients live at completely different magnitudes
+    """
     m = estimates.mean(0)
-    return float(jnp.sum(jnp.var(estimates, axis=0)) / (jnp.sum(m ** 2) + 1e-30)), m
+    tr = float(jnp.sum(jnp.var(estimates, axis=0)))
+    msq = float(jnp.sum(m ** 2))
+    return dict(trace_cov=tr, mean_norm_sq=msq, norm_var=tr / (msq + 1e-30))
 
 
 def main():
@@ -111,6 +134,7 @@ def main():
     rows = {}
 
     print("env={} M={} B={} total episodes/horizon={}".format(a.env, a.M, a.B, P))
+    print("\nRAW trace(Cov[g]) -- the paper's quantity (Sec. 3.1)")
     print("{:>6s} {:>14s} {:>14s} {:>14s} {:>14s}".format(
         "T", "PG(g=1.0)", "PG(g=0.99)", "ES(raw)", "ES(rank)"))
 
@@ -135,8 +159,7 @@ def main():
             gl = glogp.reshape(a.M, a.B, D)
             base = R.mean(axis=1, keepdims=True)                        # "a good baseline"
             est = jnp.einsum('mb,mbd->md', R - base, gl) / a.B          # (M, D)
-            nv, mean = norm_var(est)
-            row['pg_g{}'.format(gm)] = nv
+            row['pg_g{}'.format(gm)] = var_stats(est)
 
         # ---- ES arm: P/2 antithetic pairs, same episode budget --------------------
         npairs = P // 2
@@ -154,24 +177,42 @@ def main():
                 sl = slice(m * pairs_per_est, (m + 1) * pairs_per_est)
                 w = shaped_weights(rp[sl], rn[sl], mode)
                 ests.append(es_gradient(w, eps[sl], a.sigma_p, divide_by_sigma=True))
-            nv, _ = norm_var(jnp.stack(ests))
-            row[label] = nv
+            row[label] = var_stats(jnp.stack(ests))
 
         rows[T] = row
-        print("{:6d} {:14.3f} {:14.3f} {:14.3f} {:14.3f}".format(
-            T, row['pg_g1.0'], row['pg_g0.99'], row['es_raw'], row['es_rank']))
+        print("{:6d} {:>14.4g} {:>14.4g} {:>14.4g} {:>14.4g}".format(
+            T, row['pg_g1.0']['trace_cov'], row['pg_g0.99']['trace_cov'],
+            row['es_raw']['trace_cov'], row['es_rank']['trace_cov']))
 
     os.makedirs(os.path.dirname(a.out) or '.', exist_ok=True)
-    json.dump({'args': vars(a), 'rows': {str(k): v for k, v in rows.items()}},
-              open(a.out, 'w'), indent=1)
 
-    # ---- the actual verdict: fit normalised variance ~ T^k -----------------------
-    print("\nSCALING EXPONENT  (normalised variance ~ T^k; Sec. 3.1 predicts k~1 for PG, k~0 for ES)")
+    KEYS = ['pg_g1.0', 'pg_g0.99', 'es_raw', 'es_rank']
+    print("\nNORMALISED trace(Cov)/||E g||^2 -- estimator signal-to-noise")
+    print("{:>6s} {:>14s} {:>14s} {:>14s} {:>14s}".format(
+        "T", "PG(g=1.0)", "PG(g=0.99)", "ES(raw)", "ES(rank)"))
+    for T in Ts:
+        print("{:6d} {:>14.4g} {:>14.4g} {:>14.4g} {:>14.4g}".format(
+            T, *[rows[T][k_]['norm_var'] for k_ in KEYS]))
+
     lt = np.log(np.array(Ts, dtype=float))
-    for key_ in ['pg_g1.0', 'pg_g0.99', 'es_raw', 'es_rank']:
-        y = np.log(np.array([rows[T][key_] for T in Ts]))
-        k = np.polyfit(lt, y, 1)[0]
-        print("  {:12s} k = {:+.3f}".format(key_, k))
+    fits = {}
+    print("\nSCALING EXPONENTS  (quantity ~ T^k)")
+    print("{:12s} {:>12s} {:>12s} {:>12s}".format("", "trace(Cov)", "||E g||^2", "normalised"))
+    for key_ in KEYS:
+        ks = {}
+        for field in ['trace_cov', 'mean_norm_sq', 'norm_var']:
+            y = np.log(np.array([max(rows[T][key_][field], 1e-300) for T in Ts]))
+            ks[field] = float(np.polyfit(lt, y, 1)[0])
+        fits[key_] = ks
+        print("{:12s} {:>+12.3f} {:>+12.3f} {:>+12.3f}".format(
+            key_, ks['trace_cov'], ks['mean_norm_sq'], ks['norm_var']))
+
+    print("\nSec. 3.1 predicts trace(Cov) ~ T^1 for policy gradients and T^0 for ES.")
+    print("The ES prediction is exact by construction: grad log p(theta~;theta) = eps/sigma")
+    print("carries no dependence on T, so any deviation from k=0 there is sampling noise.")
+
+    json.dump({'args': vars(a), 'rows': {str(k_): v for k_, v in rows.items()},
+               'fits': fits}, open(a.out, 'w'), indent=1)
     print("\nwrote", a.out)
 
 
