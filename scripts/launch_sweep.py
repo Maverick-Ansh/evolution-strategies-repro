@@ -19,8 +19,10 @@ XLA_PYTHON_CLIENT_MEM_FRACTION keeps them from fighting over memory.
 import argparse, itertools, json, os, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TABLE1 = ['halfcheetah', 'hopper', 'inverted_double_pendulum',
-          'inverted_pendulum', 'swimmer', 'walker2d']
+# ordered fastest-first (measured env-steps/s on this box) so that a sweep which runs
+# out of time still yields complete rows rather than half of every row
+TABLE1 = ['swimmer', 'inverted_double_pendulum', 'inverted_pendulum',
+          'halfcheetah', 'hopper', 'walker2d']
 
 
 def es_cmd(env, seed, steps, tag, **kw):
@@ -103,7 +105,16 @@ def main():
     os.chdir(ROOT)
     os.makedirs('results/logs', exist_ok=True)
     runs = build_runs(a.which.split(','), a.seeds, a.es_steps, a.pg_steps, a.n_pairs)
-    todo = [(c, t) for c, t in runs if not os.path.exists('results/{}.json'.format(t))]
+    def finished(t):
+        f = 'results/{}.json'.format(t)
+        if not os.path.exists(f):
+            return False
+        try:
+            return json.load(open(f)).get('complete', True)
+        except Exception:
+            return False
+
+    todo = [(c, t) for c, t in runs if not finished(t)]
     print("{} runs, {} still to do".format(len(runs), len(todo)), flush=True)
     if a.dry_run:
         for c, t in todo:

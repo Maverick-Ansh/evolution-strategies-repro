@@ -45,6 +45,16 @@ from brax.training.agents.ppo import networks as ppo_networks
 # at all -- its maintainers use SAC for both. That is a fact about how hard those two
 # environments are for on-policy policy gradients in this simulator, and it is reported
 # rather than papered over (see scripts/train_sac.py for the SAC arm).
+def dump(out, payload):
+    """Write results at every eval, atomically, so a run that is stopped early still
+    yields a usable learning curve instead of nothing."""
+    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
+    tmp = out + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(payload, f, indent=1)
+    os.replace(tmp, out)
+
+
 BRAX_PPO = {
     'inverted_pendulum':        dict(reward_scaling=10, unroll_length=5, num_minibatches=32,
                                      updates_per_batch=4, discounting=0.97, lr=3e-4,
@@ -107,8 +117,13 @@ def main():
     tag = a.tag or "ppo_{}_s{}".format(a.env, a.seed)
     out = a.out or "results/{}.json".format(tag)
     if os.path.exists(out):
-        print("[skip] {} exists".format(out))
-        return
+        try:
+            if json.load(open(out)).get('complete', True):
+                print("[skip] {} already complete".format(out))
+                return
+            print("[restart] {} exists but is incomplete".format(out))
+        except Exception:
+            pass
 
     env = envs.get_environment(a.env, backend=a.backend)
     if a.delayed_reward:
@@ -135,6 +150,8 @@ def main():
         hist['wall'].append(time.time() - t0)
         print("  steps {:>11,} eval {:9.2f}  ({:.0f}s)".format(int(num_steps), r,
                                                                time.time() - t0), flush=True)
+        dump(out, {'args': vars(a), 'hist': hist, 'wall_s': time.time() - t0,
+                   'final_eval': hist['eval'][-1], 'complete': False})
 
     print("[{}] env={} preset={} hidden={} act={} budget={:,} "
           "rs={} disc={} ent={} unroll={} envs={} bs={}".format(
@@ -163,9 +180,8 @@ def main():
         progress_fn=progress,
     )
 
-    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
-    json.dump({'args': vars(a), 'hist': hist, 'wall_s': time.time() - t0,
-               'final_eval': hist['eval'][-1]}, open(out, 'w'), indent=1)
+    dump(out, {'args': vars(a), 'hist': hist, 'wall_s': time.time() - t0,
+               'final_eval': hist['eval'][-1], 'complete': True})
     print("[{}] done in {:.0f}s -> {}".format(tag, time.time() - t0, out), flush=True)
 
 

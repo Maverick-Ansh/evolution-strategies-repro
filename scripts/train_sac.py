@@ -29,6 +29,16 @@ from brax import envs
 from brax.training.agents.sac import train as sac
 from brax.training.agents.sac import networks as sac_networks
 
+def dump(out, payload):
+    """Write results at every eval, atomically, so a run that is stopped early still
+    yields a usable learning curve instead of nothing."""
+    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
+    tmp = out + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(payload, f, indent=1)
+    os.replace(tmp, out)
+
+
 BRAX_SAC = {
     'hopper':   dict(reward_scaling=30, discounting=0.997, lr=6e-4, num_envs=128,
                      batch_size=512, grad_updates_per_step=64),
@@ -56,8 +66,13 @@ def main():
     tag = a.tag or "sac_{}_s{}".format(a.env, a.seed)
     out = a.out or "results/{}.json".format(tag)
     if os.path.exists(out):
-        print("[skip] {} exists".format(out))
-        return
+        try:
+            if json.load(open(out)).get('complete', True):
+                print("[skip] {} already complete".format(out))
+                return
+            print("[restart] {} exists but is incomplete".format(out))
+        except Exception:
+            pass
 
     env = envs.get_environment(a.env, backend=a.backend)
     if a.delayed_reward:
@@ -78,6 +93,8 @@ def main():
         hist['wall'].append(time.time() - t0)
         print("  steps {:>11,} eval {:9.2f}  ({:.0f}s)".format(int(num_steps), r,
                                                                time.time() - t0), flush=True)
+        dump(out, {'args': vars(a), 'cfg': cfg, 'hist': hist, 'wall_s': time.time() - t0,
+                   'final_eval': hist['eval'][-1], 'complete': False})
 
     print("[{}] SAC env={} budget={:,} cfg={}".format(tag, a.env, a.max_steps, cfg), flush=True)
 
@@ -101,9 +118,8 @@ def main():
         progress_fn=progress,
     )
 
-    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
-    json.dump({'args': vars(a), 'cfg': cfg, 'hist': hist, 'wall_s': time.time() - t0,
-               'final_eval': hist['eval'][-1]}, open(out, 'w'), indent=1)
+    dump(out, {'args': vars(a), 'cfg': cfg, 'hist': hist, 'wall_s': time.time() - t0,
+               'final_eval': hist['eval'][-1], 'complete': True})
     print("[{}] done in {:.0f}s -> {}".format(tag, time.time() - t0, out), flush=True)
 
 

@@ -25,6 +25,16 @@ from es.noise import SharedNoiseTable
 DISCRETIZE = {'hopper': 10, 'swimmer': 10}
 
 
+def dump(out, payload):
+    """Write results at every eval, atomically, so a run that is stopped early still
+    yields a usable learning curve instead of nothing."""
+    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
+    tmp = out + '.tmp'
+    with open(tmp, 'w') as f:
+        json.dump(payload, f, indent=1)
+    os.replace(tmp, out)
+
+
 def _wrap_batched(e, episode_length, action_repeat, batch_size):
     """Same wrapper stack brax's envs.create applies, but around an already-wrapped env."""
     from brax.envs import wrappers
@@ -63,8 +73,13 @@ def main():
     tag = a.tag or "es_{}_s{}".format(a.env, a.seed)
     out = a.out or "results/{}.json".format(tag)
     if os.path.exists(out):
-        print("[skip] {} exists".format(out))
-        return
+        try:
+            if json.load(open(out)).get('complete', True):
+                print("[skip] {} already complete".format(out))
+                return
+            print("[restart] {} exists but is incomplete".format(out))
+        except Exception:
+            pass
 
     hidden = tuple(int(x) for x in a.hidden.split(','))
     bins = DISCRETIZE.get(a.env, 0) if a.discretize < 0 else a.discretize
@@ -156,12 +171,15 @@ def main():
                   "cap {:4d} trunc {:4.0%} {:7.1f}k sps".format(
                       it, total_steps, ev_ret, float(jnp.mean(returns)), mean_len,
                       scan_T, trunc, total_steps / (time.time() - t0) / 1e3), flush=True)
+            dump(out, {'args': vars(a), 'D': D, 'P': P, 'bins': bins,
+                       'compiled_caps': rollouts.compiled, 'hist': hist,
+                       'wall_s': time.time() - t0, 'final_eval': hist['eval'][-1],
+                       'complete': False})
 
-    os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
-    json.dump({'args': vars(a), 'D': D, 'P': P, 'bins': bins,
+    dump(out, {'args': vars(a), 'D': D, 'P': P, 'bins': bins,
                'compiled_caps': rollouts.compiled, 'hist': hist,
-               'wall_s': time.time() - t0, 'final_eval': hist['eval'][-1]},
-              open(out, 'w'), indent=1)
+               'wall_s': time.time() - t0, 'final_eval': hist['eval'][-1],
+               'complete': True})
     print("[{}] done in {:.0f}s -> {}".format(tag, time.time() - t0, out), flush=True)
 
 
