@@ -15,7 +15,7 @@ from brax import envs
 
 from es.core import ESConfig, RunningStat, make_optimizer, build_population, es_update
 from es.policy import PolicySpec, init_flat
-from es.rollout import make_pop_rollout, dynamic_cap
+from es.rollout import make_pop_rollout, cap_bucket, RolloutCache
 from es.noise import SharedNoiseTable
 
 # Sec. 4.1: "we discretized the actions for ES into 10 bins for each action component"
@@ -55,7 +55,7 @@ def main():
     p.add_argument('--discretize', type=int, default=-1)     # -1 => use DISCRETIZE table
     p.add_argument('--eval-every', type=int, default=10)
     p.add_argument('--eval-batch', type=int, default=256)
-    p.add_argument('--dynamic-cap', action='store_true')
+    p.add_argument('--no-dynamic-cap', action='store_true')
     p.add_argument('--out', default=None)
     p.add_argument('--tag', default=None)
     a = p.parse_args()
@@ -104,13 +104,14 @@ def main():
     rs = np.random.RandomState(a.seed)
     obstat = RunningStat((spec.obs_dim,), eps=1e-2)
 
-    rollout = make_pop_rollout(env, spec, a.episode_length)
+    rollouts = RolloutCache(env, spec)
     evaluate = make_pop_rollout(eval_env, eval_spec, a.episode_length)
 
     hist = {'steps': [], 'eval': [], 'pop_mean': [], 'pop_max': [], 'iter': [],
             'wall': [], 'update_ratio': [], 'mean_len': []}
     total_steps, t0, it = 0, time.time(), 0
-    cap = a.episode_length
+    mean_len = 32.0       # seeds the Sec. 2.1 cap; corrected after the first iteration
+    trunc = 0.0
 
     print("[{}] env={} backend={} D={} P={} bins={} obs={} act={} budget={:,}".format(
         tag, a.env, a.backend, D, P, bins, spec.obs_dim, spec.act_dim, a.max_steps), flush=True)
@@ -124,9 +125,10 @@ def main():
         om = jnp.asarray(obstat.mean) if cfg.obs_norm else jnp.zeros(spec.obs_dim)
         os_ = jnp.asarray(obstat.std) if cfg.obs_norm else jnp.ones(spec.obs_dim)
 
+        scan_T = a.episode_length if a.no_dynamic_cap else cap_bucket(mean_len, a.episode_length)
         pop = build_population(theta, eps, cfg.sigma, cfg.antithetic)
         key, rk = jax.random.split(key)
-        r = rollout(pop, rk, om, os_, cap)
+        r = rollouts.get(scan_T)(pop, rk, om, os_)
         returns = r['returns']
         lengths = np.asarray(r['lengths'])
         total_steps += int(lengths.sum()) * a.action_repeat
@@ -135,14 +137,12 @@ def main():
             obstat.increment(np.asarray(r['obs_sum']), np.asarray(r['obs_sumsq']),
                              float(r['obs_count']))
         theta, g, ratio = es_update(theta, eps, returns, cfg, opt)
-
-        if a.dynamic_cap:      # Sec. 2.1: m = 2 x mean episode length
-            cap = dynamic_cap(float(lengths.mean()), a.episode_length)
+        mean_len = float(lengths.mean())          # drives Sec. 2.1's m for the next iter
+        trunc = float(r['truncated'])             # fraction still alive when the cap hit
 
         if it % a.eval_every == 0 or total_steps >= a.max_steps:
             key, ek = jax.random.split(key)
-            ev = evaluate(jnp.tile(theta[None], (a.eval_batch, 1)), ek, om, os_,
-                          a.episode_length)
+            ev = evaluate(jnp.tile(theta[None], (a.eval_batch, 1)), ek, om, os_)
             ev_ret = float(jnp.mean(ev['returns']))
             hist['steps'].append(total_steps)
             hist['eval'].append(ev_ret)
@@ -151,13 +151,15 @@ def main():
             hist['iter'].append(it)
             hist['wall'].append(time.time() - t0)
             hist['update_ratio'].append(ratio)
-            hist['mean_len'].append(float(lengths.mean()))
-            print("  it {:5d} steps {:>11,} eval {:9.2f} pop {:9.2f} len {:6.1f} {:7.1f}k sps".format(
-                it, total_steps, ev_ret, float(jnp.mean(returns)), lengths.mean(),
-                total_steps / (time.time() - t0) / 1e3), flush=True)
+            hist['mean_len'].append(mean_len)
+            print("  it {:5d} steps {:>11,} eval {:9.2f} pop {:9.2f} len {:6.1f} "
+                  "cap {:4d} trunc {:4.0%} {:7.1f}k sps".format(
+                      it, total_steps, ev_ret, float(jnp.mean(returns)), mean_len,
+                      scan_T, trunc, total_steps / (time.time() - t0) / 1e3), flush=True)
 
     os.makedirs(os.path.dirname(out) or '.', exist_ok=True)
-    json.dump({'args': vars(a), 'D': D, 'P': P, 'bins': bins, 'hist': hist,
+    json.dump({'args': vars(a), 'D': D, 'P': P, 'bins': bins,
+               'compiled_caps': rollouts.compiled, 'hist': hist,
                'wall_s': time.time() - t0, 'final_eval': hist['eval'][-1]},
               open(out, 'w'), indent=1)
     print("[{}] done in {:.0f}s -> {}".format(tag, time.time() - t0, out), flush=True)
