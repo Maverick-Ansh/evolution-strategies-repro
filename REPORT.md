@@ -5,8 +5,12 @@ Salimans, Ho, Chen, Sidor & Sutskever (OpenAI, 2017) — [arXiv:1703.03864](http
 Reproduced on 2×Tesla T4 (Kaggle), GPU-vectorized Brax, JAX 0.7.2.
 Code: [`Maverick-Ansh/evolution-strategies-repro`](https://github.com/Maverick-Ansh/evolution-strategies-repro)
 
-> **Status: in progress.** Sections 1–3 and 6 are final. Results tables are being filled
-> as the sweep completes; every unfilled cell is marked `PENDING` rather than estimated.
+> **Status.** §3 (what broke), §4.1 (C5 variance), §5 (C4 bandwidth/scaling) and §6 (the
+> LLM measurement) are complete and final. §4.0 (C1, the Table-1 ratios) is reported as
+> **untestable with the baseline achieved**, with the reason and the fix stated. C2, C3,
+> C6 and C7 were not reached — see §7. The training sweep continues in the background;
+> `scripts/analyze_table1.py` and `scripts/make_figures.py` regenerate everything from
+> `results/*.json`.
 
 ---
 
@@ -169,6 +173,51 @@ the opposite of the paper on its two hardest environments.**
 ---
 
 ## 4. Results
+
+### 4.0 C1 (Table 1 sample-complexity ratios) — **NOT TESTED**, and the reason matters
+
+This is the paper's headline claim and it is the one this reproduction failed to put a
+number on. Stating that plainly, because "ES won" would be the easy and wrong write-up.
+
+Two environments completed both arms at two seeds:
+
+| env | PG start → final | ES start → final | measured floors (init-net / random) |
+|---|---|---|---|
+| swimmer | −23.5 → **29.2** | 26.1 → **316.0** | 2.4 / 0.8 |
+| inverted_double_pendulum | 142.0 → **524.3** | 507.4 → **1328.6** | 431.9 / 206.1 |
+
+ES ends 10.7× and 2.9× above the PG arm. It would be easy to report that as a large ES
+win. It is not one, for a specific and checkable reason: **ES's first recorded evaluation
+already exceeds the PG arm's final score.** Every cell of the ratio table is therefore
+*left-censored* — an upper bound on the ratio, not a measurement of it:
+
+| env | 25% | 50% | 75% | 100% | paper's row |
+|---|---|---|---|---|---|
+| inverted_double_pendulum | <0.011 | <0.008 | <0.006 | <0.004 | 0.46 / 0.48 / 0.49 / 1.23 |
+| swimmer | <0.19 | <0.16 | <0.11 | 0.059 | 0.56 / 0.47 / 0.53 / 0.30 |
+
+Table 1 asks "how many timesteps does ES need to reach X% of the policy-gradient method's
+learning progress". That question is only meaningful when the PG arm's learning progress is
+itself substantial. Here it is not:
+
+* **Budget.** The PG arm ran the paper's TRPO budget (5M timesteps, which Brax rounds up to
+  7.86M). Brax's own tuned recipe calls for **20M** on inverted_double_pendulum, so this
+  baseline is stopped at roughly a third of the way through its intended schedule.
+* **Tuning.** Brax publishes **no PPO configuration for Swimmer at all**; it inherits
+  HalfCheetah's, which is an untuned baseline by construction.
+* **Consequence.** PPO moves inverted_double_pendulum from 142 to 524 — barely past the
+  431.9 init-network floor — so "100% of PG's learning progress" is a target ES clears
+  before its second evaluation.
+
+**Verdict on C1: untestable with this baseline, not refuted and not confirmed.** The
+instrument required is a policy-gradient arm strong enough that its own learning curve is a
+meaningful yardstick, and that was not achieved inside the compute budget. The fix is
+mechanical rather than conceptual — run the PG arm at Brax's recommended budgets (20M for
+inverted_double_pendulum, 50M for HalfCheetah), tune Swimmer, and re-run
+`scripts/analyze_table1.py`, which already handles censoring correctly.
+
+This is the same hazard as §3.5, caught a second time at a later stage: on a resized
+reproduction, the *evaluation* breaks more often than the model does.
 
 ### 4.1 C5 — the variance argument (Sec. 3.1). Confirmed for ES; PG is *worse* than the paper claims
 
@@ -379,6 +428,17 @@ factorization, not end-task learning curves — no ES-vs-GRPO training run was p
 
 ## 7. What was *not* tested
 
+- **C2, invariance to action frequency (Sec. 4.4).** Implemented (`--action-repeat`, and
+  the `frameskip` arm of `launch_sweep.py`) but never run — the Table-1 sweep did not
+  finish inside the session. No claim either way.
+- **C3, maximally delayed reward (Sec. 3.3).** Implemented (`es/delayed.py`, which pays the
+  whole episode return on the terminal step) but not run. Note the ES side of this claim is
+  true by construction — ES consumes only Σ_t r_t, so the objective is literally unchanged —
+  and the experiment exists to measure how far the *policy-gradient* arm falls.
+- **C6 and C7, the reparameterization and shaping ablations.** Arms are wired up in
+  `launch_sweep.py --which ablation` (no obs-normalization, continuous vs 10-bin actions,
+  raw returns, no antithetic sampling, and Algorithm 1 taken literally with SGD and the
+  1/σ the released code drops). Not run.
 - **Atari (Sec. 4.2, Table 2).** 51 games × 1B frames is far outside this budget. None of
   the Atari claims — including the virtual-batch-normalization result that is key finding
   1 — are tested here. The obs-normalization ablation (C6) is the MuJoCo analogue only.
