@@ -1,0 +1,48 @@
+{
+ "args": {
+  "model": "Qwen/Qwen2.5-0.5B-Instruct",
+  "lengths": "8,16,32,64,128,256",
+  "n_seq": 32,
+  "target": "attn",
+  "sigma": 0.02,
+  "temperature": 1.0,
+  "seed": 0,
+  "out": "results/llm_variance.json"
+ },
+ "D": 22020096,
+ "rows": {
+  "8": {
+   "trace_cov_pg": 187676.56389302015,
+   "mean_norm_sq": 13161.903452157974,
+   "N": 32
+  },
+  "16": {
+   "trace_cov_pg": 300201.0177436769,
+   "mean_norm_sq": 24417.75321817398,
+   "N": 32
+  },
+  "32": {
+   "trace_cov_pg": 709065.3814941049,
+   "mean_norm_sq": 41399.420679330826,
+   "N": 32
+  },
+  "64": {
+   "trace_cov_pg": 1406809.7642243505,
+   "mean_norm_sq": 95664.53206348419,
+   "N": 32
+  },
+  "128": {
+   "trace_cov_pg": 2907119.557021141,
+   "mean_norm_sq": 351069.75925922394,
+   "N": 32
+  },
+  "256": {
+   "trace_cov_pg": 9103195.560943604,
+   "mean_norm_sq": 2648181.60546875,
+   "N": 32
+  }
+ },
+ "es_trace_cov": 55050240000.0,
+ "pg_exponent_k": 1.109013397148202,
+ "crossover_T": null
+}

@@ -1,0 +1,64 @@
+{
+ "args": {
+  "env": "inverted_pendulum",
+  "backend": "generalized",
+  "n_pairs": 64,
+  "sigma": 0.02,
+  "stepsize": 0.01,
+  "l2coeff": 0.005,
+  "hidden": "64,64",
+  "episode_length": 1000,
+  "action_repeat": 1,
+  "delayed_reward": false,
+  "max_steps": 10000000,
+  "seed": 0,
+  "shaping": "centered_rank",
+  "optimizer": "adam",
+  "divide_by_sigma": false,
+  "no_obs_norm": false,
+  "no_antithetic": false,
+  "discretize": -1,
+  "eval_every": 10,
+  "eval_batch": 256,
+  "no_dynamic_cap": false,
+  "out": null,
+  "tag": "es_inverted_pendulum_s0"
+ },
+ "D": 4545,
+ "P": 128,
+ "bins": 0,
+ "compiled_caps": [
+  64,
+  128,
+  1000
+ ],
+ "hist": {
+  "steps": [
+   425404
+  ],
+  "eval": [
+   1000.0
+  ],
+  "pop_mean": [
+   1000.0
+  ],
+  "pop_max": [
+   1000.0
+  ],
+  "iter": [
+   10
+  ],
+  "wall": [
+   212.03817582130432
+  ],
+  "update_ratio": [
+   0.015029332600533962
+  ],
+  "mean_len": [
+   1000.0
+  ]
+ },
+ "wall_s": 212.04494166374207,
+ "final_eval": 1000.0,
+ "complete": false
+}
