@@ -140,7 +140,8 @@ def main():
         om = jnp.asarray(obstat.mean) if cfg.obs_norm else jnp.zeros(spec.obs_dim)
         os_ = jnp.asarray(obstat.std) if cfg.obs_norm else jnp.ones(spec.obs_dim)
 
-        scan_T = a.episode_length if a.no_dynamic_cap else cap_bucket(mean_len, a.episode_length)
+        scan_T = (a.episode_length if a.no_dynamic_cap
+                  else cap_bucket(mean_len, a.episode_length, trunc))
         pop = build_population(theta, eps, cfg.sigma, cfg.antithetic)
         key, rk = jax.random.split(key)
         r = rollouts.get(scan_T)(pop, rk, om, os_)

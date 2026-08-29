@@ -80,12 +80,24 @@ def make_pop_rollout(env, spec: PolicySpec, scan_T: int):
     return jax.jit(rollout)
 
 
-def cap_bucket(mean_length: float, max_T: int, mult: float = 2.0, min_T: int = 32) -> int:
+def cap_bucket(mean_length: float, max_T: int, truncated: float = 0.0,
+               mult: float = 2.0, min_T: int = 32) -> int:
     """Sec. 2.1's m = 2 x mean episode length, rounded UP to a power of two.
 
-    Bucketing keeps the number of distinct XLA compilations to log2(max_T/min_T) ~ 5
-    for a whole run, instead of one per iteration.
+    Bucketing keeps the number of distinct XLA compilations small, which matters far
+    more here than it did on the paper's CPUs: with Brax's `generalized` backend,
+    compiling one rollout graph costs tens of seconds and is single-threaded, so on this
+    4-CPU box compilation -- not simulation -- dominates a short run.
+
+    `truncated` is the fraction of lanes still alive when the scan ended. If most of the
+    population never terminates (HalfCheetah and Swimmer never do), doubling the cap one
+    step at a time would walk 32 -> 64 -> ... -> 1000 and pay for SIX compilations to
+    reach a cap that was always going to be the full horizon. Jumping straight there
+    costs two. This is a pure scheduling shortcut: it changes which caps are visited,
+    not the rule m = 2 x mean episode length that Sec. 2.1 specifies.
     """
+    if truncated > 0.5:
+        return int(max_T)
     m = max(min_T, mult * mean_length)
     b = min_T
     while b < m and b < max_T:
