@@ -8,6 +8,17 @@ GPU-vectorized simulator.
 **Read [`REPORT.md`](REPORT.md) first** — it holds the claims, the deviations, what broke,
 and the verdicts. This file is just the map.
 
+## Headline results
+
+| claim | verdict |
+|---|---|
+| **C4** — scalar-only communication (Sec. 2.1) | **Confirmed exactly.** At the paper's 1,440 workers ES broadcasts **16.9 KB/iteration regardless of network size**, vs 31.3 MB / 729.9 MB / 3.7 GB for gradient all-reduce — **1,901× / 44,294× / 226,923×**. |
+| **C4** — Fig. 1 parallel scaling, on a GPU | **128× more perturbations for 3.1× the wall-clock**; iteration time flat from P=32 to P=512, saturating near P≈2048. |
+| **C5** — ES gradient variance is horizon-independent (Sec. 3.1) | **Confirmed:** trace(Cov) ∝ T^−0.02, i.e. exactly flat. |
+| **C5** — PG variance grows "nearly linearly with T" | **Confirmed in direction, wrong in degree:** measured T^**+2.49** on HalfCheetah. The paper's stated reason — "a sum of T *uncorrelated* terms" — is violated; the terms are positively correlated. |
+| **Sec. 3.1 in the LLM/RLVR regime** | On Qwen2.5-0.5B the exponent is **T^+1.11** — the paper's uncorrelated-terms assumption is *nearly exact for a language model* and badly wrong for continuous control. But ES's dimension term (D/σ²) dominates: the crossover sits at **≈6.6×10⁵ generated tokens**, so ES-for-LLMs must win on dimensionality, not horizon. |
+| **C1** — Table 1 sample-complexity ratios | **Not tested.** The policy-gradient baseline at the paper's 5M budget is too weak for its own learning progress to be a meaningful yardstick, so every cell is left-censored. Reported as untestable, not as an ES win. |
+
 ---
 
 ## The one-line version of the resize
