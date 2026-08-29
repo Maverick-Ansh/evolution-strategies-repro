@@ -59,8 +59,10 @@ check("centered_rank is antisymmetric under swapping the +/- halves (Sec. 2.1)",
 # continuous returns, but it means the reference's shaping is not tie-safe -- e.g. a
 # task with a 0/1 reward and an all-zero population does NOT sit still.
 g_tie = es_gradient(shaped_weights(jnp.ones(n), jnp.ones(n), "centered_rank"), eps, 0.02)
-check("tie artifact is exactly -mean(eps)/2, as predicted from stable argsort",
-      bool(jnp.allclose(g_tie, -eps.mean(0) / 2, atol=1e-6)),
+# With stable argsort the flattened ranks are 0..2n-1 in index order, so every pair
+# gets weight -1/(2n-1) and the update collapses to -mean(eps)/(2*(2n-1)).
+check("tie artifact has the closed form -mean(eps)/(2(2n-1))",
+      bool(jnp.allclose(g_tie, -eps.mean(0) / (2 * (2 * n - 1)), atol=1e-8)),
       f"|g_tie|={float(jnp.abs(g_tie).max()):.4e}")
 
 g_raw = es_gradient(jnp.ones(n), eps, sigma=0.02, divide_by_sigma=False)
