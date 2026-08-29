@@ -40,6 +40,9 @@ import numpy as np
 import jax, jax.numpy as jnp
 from brax import envs
 
+from es.jaxcache import enable as _enable_jax_cache
+_enable_jax_cache()
+
 from es.policy import PolicySpec, init_flat, forward
 from es.shaping import shaped_weights, es_gradient
 

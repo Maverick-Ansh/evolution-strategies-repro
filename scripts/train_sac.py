@@ -26,6 +26,9 @@ os.environ.setdefault('XLA_PYTHON_CLIENT_PREALLOCATE', 'false')
 import jax
 import jax.numpy as jnp
 from brax import envs
+
+from es.jaxcache import enable as _enable_jax_cache
+_enable_jax_cache()
 from brax.training.agents.sac import train as sac
 from brax.training.agents.sac import networks as sac_networks
 

@@ -13,6 +13,9 @@ import numpy as np
 import jax, jax.numpy as jnp
 from brax import envs
 
+from es.jaxcache import enable as _enable_jax_cache
+_enable_jax_cache()
+
 from es.core import ESConfig, RunningStat, make_optimizer, build_population, es_update
 from es.policy import PolicySpec, init_flat
 from es.rollout import make_pop_rollout, cap_bucket, RolloutCache

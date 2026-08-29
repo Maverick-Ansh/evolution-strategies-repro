@@ -39,6 +39,9 @@ import numpy as np
 import jax, jax.numpy as jnp
 from brax import envs
 
+from es.jaxcache import enable as _enable_jax_cache
+_enable_jax_cache()
+
 from es.policy import PolicySpec, init_flat
 from es.rollout import make_pop_rollout
 from es.noise import perturbation_descriptor_bytes, gradient_broadcast_bytes
