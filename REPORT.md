@@ -170,11 +170,120 @@ the opposite of the paper on its two hardest environments.**
 
 ## 4. Results
 
-PENDING — sweep in progress.
+### 4.1 C5 — the variance argument (Sec. 3.1). Confirmed for ES; PG is *worse* than the paper claims
 
-## 5. The parallelism claim on one GPU
+This is the paper's load-bearing argument and it is stated without a single number. It is
+also directly measurable: fix one policy, vary the horizon, estimate the sampling
+distribution of each gradient estimator. No training, no critic, no learned probe.
+HalfCheetah, because it never terminates early, so T is exactly the quantity being varied.
 
-PENDING.
+**trace(Cov[g]) — the paper's own quantity** (512 episodes per horizon, 32 estimates × 16 episodes):
+
+| T | REINFORCE γ=1.0 | REINFORCE γ=0.99 | ES (mean baseline) | ES (centered rank) |
+|---:|---:|---:|---:|---:|
+| 8 | 593 | 544 | 9.86e5 | 9.45e4 |
+| 16 | 4,812 | 4,091 | 9.42e5 | 8.71e4 |
+| 32 | 3.23e4 | 2.36e4 | 8.84e5 | 8.34e4 |
+| 64 | 1.71e5 | 9.31e4 | 9.35e5 | 8.98e4 |
+| 128 | 8.51e5 | 2.84e5 | 9.15e5 | 8.80e4 |
+| 256 | **3.40e6** | 6.22e5 | **9.09e5** | 8.24e4 |
+
+Fitted exponents, quantity ∝ T^k:
+
+| estimator | trace(Cov) | ‖E[g]‖² | normalised |
+|---|---:|---:|---:|
+| REINFORCE γ=1.0 | **+2.492** | +2.665 | −0.174 |
+| REINFORCE γ=0.99 | +2.032 | +2.175 | −0.143 |
+| ES (mean baseline) | **−0.018** | −0.017 | −0.001 |
+| ES (centered rank) | −0.024 | −0.023 | −0.001 |
+
+**Verdict on C5: confirmed for ES, and the policy-gradient side fails in the paper's favour.**
+
+1. **ES is exactly horizon-independent** — k = −0.018, i.e. zero within sampling noise. This
+   is not really an empirical finding; it is forced by the algebra, since
+   ∇log p(θ̃;θ) = ε/σ contains no T at all. The measurement confirms the implementation
+   has no hidden T-dependence.
+
+2. **The paper's stated assumption is wrong here.** Sec. 3.1 argues the policy-gradient
+   score is "a sum of T uncorrelated terms", which predicts k = +1. Measured k = **+2.49**.
+   Uncorrelated terms cannot produce quadratic growth: the per-token score terms are
+   *positively correlated* along a trajectory. The paper's conclusion therefore holds more
+   strongly than its argument — ES's advantage at long horizons is larger than the stated
+   reasoning implies, but for a reason the paper does not give.
+
+3. **Discounting behaves as the paper says.** γ=0.99 drops the exponent from +2.49 to +2.03,
+   consistent with *"the effective number of steps T is often reduced in policy gradient
+   methods by discounting rewards"* — and it is a reduction, not a fix.
+
+4. **The advantage is genuinely conditional, and the crossover is measurable.** At T=8
+   REINFORCE's variance is ~1,660× *lower* than ES's; the curves cross at T≈128 and by
+   T=256 ES is 3.7× lower. The paper's claim is explicitly conditional ("for long episodes
+   with very many time steps") and that condition is quantitative: on this task, ES starts
+   winning around a hundred steps.
+
+5. **A complication the paper does not address, reported because it cuts against the
+   headline.** ‖E[g]‖² grows as T^2.67 for REINFORCE — *faster* than its own variance — so
+   the scale-free ratio trace(Cov)/‖E[g]‖² actually *improves* with horizon (k = −0.17),
+   while ES's stays flat at ≈31. By that operational measure the crossover never happens in
+   this range. Sec. 3.1's variance argument is about the numerator only, and on its own it
+   does not establish that ES's *direction estimate* is more trustworthy at long horizons.
+   Both metrics are reported in `results/variance_vs_T.json`.
+
+> **Instrument bug, caught before it became a result.** The first version of this script
+> reported only the normalised quantity, measured it *falling* as T^−0.20, and would have
+> been written up as a refutation of Sec. 3.1. But the denominator grows with T too, so
+> that number was never a test of the paper's claim. Raw and normalised are now reported
+> separately (`scripts/variance_vs_T.py`).
+
+## 5. The parallelism claim on one GPU (C4)
+
+### 5.1 Bandwidth is arithmetic, so it is quoted exactly
+
+Per iteration ES broadcasts one int32 noise index and two float32 returns per antithetic
+pair. A data-parallel policy gradient must all-reduce a full D-dimensional gradient per
+worker. At the paper's own scale — n = 1,440 workers (Sec. 4.3) — and its own networks:
+
+| policy | D | ES / iteration | gradient all-reduce | ratio |
+|---|---:|---:|---:|---:|
+| MuJoCo MLP 64-64 (Sec. 4.1) | 5,702 | **16.9 KB** | 31.3 MB | **1,901×** |
+| MuJoCo MLP 256-256 (`humanoid.json`) | 132,881 | **16.9 KB** | 729.9 MB | **44,294×** |
+| Atari A3C-FF (Mnih et al. 2016) | 680,770 | **16.9 KB** | 3.7 GB | **226,923×** |
+
+The point is the constant column: **ES's per-iteration traffic does not depend on the
+network size at all.** This half of C4 is confirmed as exactly true, because it is a
+property of the algorithm rather than of any cluster.
+
+### 5.2 Fig. 1's "linear speedup", restated for a GPU
+
+We cannot rent 1,440 cores, and a shrunken Fig. 1 would just be our own noise. The
+measurable GPU analogue is: how does wall-clock per ES iteration grow as the population
+grows? (Hopper, horizon 128, one T4.)
+
+| population P | iteration (s) | env-steps/s | parallel efficiency |
+|---:|---:|---:|---:|
+| 32 | 0.477 | 8,583 | 1.00× |
+| 64 | 0.443 | 18,482 | 2.15× |
+| 128 | 0.393 | 41,640 | 4.85× |
+| 256 | 0.418 | 78,320 | 9.13× |
+| 512 | 0.460 | 142,547 | 16.61× |
+| 1024 | 0.547 | 239,451 | 27.90× |
+| 2048 | 0.778 | 336,745 | 39.24× |
+| 4096 | 1.495 | 350,757 | 40.87× |
+
+**128× more perturbations for 3.1× the wall-clock.** Iteration time is essentially flat
+(0.39–0.48 s) from P=32 to P=512 — over that range extra population members are very nearly
+free — and throughput saturates around P≈2048. This is the same structural fact Fig. 1
+reports, cashed in on different hardware: ES converts parallel capacity into population at
+near-zero marginal cost, whether that capacity is 1,440 cores or one GPU's worth of lanes.
+
+### 5.3 A negative result on multi-device scaling
+
+Splitting P=4096 across both T4s measured **0.88× — a slowdown**. ES exchanges nothing
+between devices during a rollout, so this is not an algorithmic limit: dispatching both
+device programs from one Python thread serialised them (0.778 + 0.778 ≈ 1.56 s, against
+1.708 s measured). `scripts/scaling.py` now drives each device from its own thread and
+reports both numbers. Treat this row as a measurement of a 4-CPU host driving two GPUs, not
+as a property of ES.
 
 ## 6. What was *not* tested
 
