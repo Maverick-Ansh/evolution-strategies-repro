@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+results/*.json
+!results/.gitkeep
+*.pt
+*.npz
+paper.pdf
