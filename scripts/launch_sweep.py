@@ -32,6 +32,18 @@ def es_cmd(env, seed, steps, tag, **kw):
     return c
 
 
+SAC_ENVS = {'hopper', 'walker2d'}   # Brax publishes tuned SAC, not PPO, for these
+
+
+def sac_cmd(env, seed, steps, tag, **kw):
+    c = [sys.executable, 'scripts/train_sac.py', '--env', env, '--seed', str(seed),
+         '--max-steps', str(steps), '--tag', tag]
+    for k, v in kw.items():
+        flag = '--' + k.replace('_', '-')
+        c += [flag] if v is True else [flag, str(v)]
+    return c
+
+
 def pg_cmd(env, seed, steps, tag, **kw):
     c = [sys.executable, 'scripts/train_ppo.py', '--env', env, '--seed', str(seed),
          '--max-steps', str(steps), '--tag', tag]
@@ -49,6 +61,9 @@ def build_runs(which, seeds, es_steps, pg_steps, npairs):
                                 n_pairs=npairs), 'es_{}_s{}'.format(env, s)))
             runs.append((pg_cmd(env, s, pg_steps, 'ppo_{}_s{}'.format(env, s)),
                          'ppo_{}_s{}'.format(env, s)))
+            if env in SAC_ENVS:
+                runs.append((sac_cmd(env, s, pg_steps, 'sac_{}_s{}'.format(env, s)),
+                             'sac_{}_s{}'.format(env, s)))
     if 'frameskip' in which:
         # Sec. 4.4: "running the Atari game Pong using a frame skip parameter in {1,2,3,4}"
         for env in ['hopper', 'walker2d']:
