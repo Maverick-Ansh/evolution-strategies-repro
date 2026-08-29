@@ -41,16 +41,31 @@ PCTS = [25, 50, 75, 100]
 
 
 def first_crossing(steps, evals, target):
-    """Timesteps at which the curve first reaches `target`. None if it never does.
+    """Timesteps at which the curve first reaches `target`.
+
+    Returns (t, censor) where censor is:
+      None    -- t is the measured crossing
+      'left'  -- the target was already met at the FIRST measurement, so the true
+                 crossing is somewhere in (0, t]; t is an upper bound
+      'right' -- never reached inside the budget; t is the budget, a lower bound
+
+    Left-censoring is not a technicality here. An ES run evaluates every 10 iterations,
+    which on Swimmer is already ~1.3M timesteps, and it can clear a weak PG baseline's
+    final score before its first recorded eval. Interpolating such a curve back to
+    timestep 0 reports the crossing as "0 steps" and the ratio as 0.00, which is not a
+    measurement of anything.
 
     Uses the running maximum: 'timesteps needed to reach X' is a statement about having
-    got there, and a single noisy eval dipping back below should not un-reach it.
+    got there, and one noisy eval dipping back below should not un-reach it.
     """
+    steps = np.asarray(steps, dtype=float)
     run = np.maximum.accumulate(np.asarray(evals, dtype=float))
-    idx = np.argmax(run >= target)
+    if run[0] >= target:
+        return float(steps[0]), 'left'
+    idx = int(np.argmax(run >= target))
     if run[idx] < target:
-        return None
-    return float(np.asarray(steps, dtype=float)[idx])
+        return float(steps[-1]), 'right'
+    return float(steps[idx]), None
 
 
 def load(pattern):
@@ -62,11 +77,15 @@ def load(pattern):
 
 
 def curve_mean(runs):
-    """Average eval curves across seeds on a common timestep grid."""
-    grid = np.linspace(0, min(max(r['hist']['steps']) for r in runs), 200)
-    ys = []
-    for r in runs:
-        ys.append(np.interp(grid, r['hist']['steps'], r['hist']['eval']))
+    """Average eval curves across seeds on a common timestep grid.
+
+    The grid starts at the LAST of the runs' first measurements, never at 0: extending
+    it to the origin would invent data before either arm was first evaluated.
+    """
+    lo = max(min(r['hist']['steps']) for r in runs)
+    hi = min(max(r['hist']['steps']) for r in runs)
+    grid = np.linspace(lo, hi, 200)
+    ys = [np.interp(grid, r['hist']['steps'], r['hist']['eval']) for r in runs]
     return grid, np.mean(ys, axis=0), np.std(ys, axis=0)
 
 
@@ -110,26 +129,23 @@ def main():
         row, cells = {}, []
         for pct in PCTS:
             target = init + (pct / 100.0) * (final_pg - init)
-            t_pg = first_crossing(g_pg, m_pg, target)
-            t_es = first_crossing(g_es, m_es, target)
+            t_pg, c_pg = first_crossing(g_pg, m_pg, target)
+            t_es, c_es = first_crossing(g_es, m_es, target)
             paper = TABLE1_PAPER.get(env, {}).get(pct)
-            if t_pg is None:
-                cells.append("{:>16s}".format("pg n/a"))
-                row[pct] = None
-                continue
-            if t_es is None:
-                lo = float(g_es[-1]) / t_pg
-                row[pct] = {'ratio': None, 'lower_bound': lo, 'target': target,
-                            't_pg': t_pg, 'paper': paper}
-                cells.append("{:>16s}".format(">{:.2f} [{}]".format(
-                    lo, "-" if paper is None else "{:.2f}".format(paper))))
+            pap = "-" if paper is None else "{:.2f}".format(paper)
+            ratio = t_es / t_pg
+            rs = "{:.3g}".format(ratio) if ratio < 0.1 else "{:.2f}".format(ratio)
+            # a right-censored ES crossing is a LOWER bound on the ratio; a left-censored
+            # one is an UPPER bound. PG censoring flips each of those.
+            if c_es == 'right':
+                mark = ">"
+            elif c_es == 'left':
+                mark = "<"
             else:
-                ratio = t_es / t_pg
-                row[pct] = {'ratio': ratio, 'target': target, 't_pg': t_pg,
-                            't_es': t_es, 'paper': paper}
-                rs = "{:.3g}".format(ratio) if ratio < 0.1 else "{:.2f}".format(ratio)
-                cells.append("{:>16s}".format("{} [{}]".format(
-                    rs, "-" if paper is None else "{:.2f}".format(paper))))
+                mark = ""
+            row[pct] = {'ratio': ratio, 'censor_es': c_es, 'censor_pg': c_pg,
+                        'target': target, 't_pg': t_pg, 't_es': t_es, 'paper': paper}
+            cells.append("{:>16s}".format("{}{} [{}]".format(mark, rs, pap)))
         out[env] = {'init': init, 'final_pg': final_pg, 'n_es': len(es), 'n_pg': len(pg),
                     'pcts': row}
         print(("{:<26s} {:>6s} " + " ".join(["{:>16s}"] * len(PCTS))).format(
