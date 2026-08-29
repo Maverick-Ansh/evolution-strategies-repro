@@ -34,14 +34,11 @@ import jax, jax.numpy as jnp
 from .policy import act_population, PolicySpec
 
 
-def make_pop_rollout(env, spec: PolicySpec, max_T: int, delayed_reward: bool = False):
+def make_pop_rollout(env, spec: PolicySpec, max_T: int):
     """Build a jitted fn: (thetas (P,D), key, ob_mean, ob_std, cap) -> stats.
 
-    `delayed_reward=True` withholds every per-step reward and pays the entire episode
-    sum on the final step. For ES this is a no-op by construction -- it only ever sees
-    the episode total (paper Sec. 3.3: "ES can deal with maximally sparse and delayed
-    rewards; only the total return of an episode is used"). It is the policy-gradient
-    arm that this is meant to hurt, which is the point of the ablation.
+    Reward delay is applied at the environment level (es/delayed.py), not here, so that
+    the ES and PPO arms consume literally the same environment.
     """
 
     def rollout(thetas, key, ob_mean, ob_std, cap):

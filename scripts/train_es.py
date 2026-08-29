@@ -25,6 +25,14 @@ from es.noise import SharedNoiseTable
 DISCRETIZE = {'hopper': 10, 'swimmer': 10}
 
 
+def _wrap_batched(e, episode_length, action_repeat, batch_size):
+    """Same wrapper stack brax's envs.create applies, but around an already-wrapped env."""
+    from brax.envs import wrappers
+    e = wrappers.training.EpisodeWrapper(e, episode_length, action_repeat)
+    e = wrappers.training.VmapWrapper(e, batch_size)
+    return e
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('--env', default='inverted_pendulum')
@@ -62,11 +70,18 @@ def main():
     bins = DISCRETIZE.get(a.env, 0) if a.discretize < 0 else a.discretize
     P = 2 * a.n_pairs if not a.no_antithetic else a.n_pairs
 
-    env = envs.create(a.env, backend=a.backend, episode_length=a.episode_length,
-                      action_repeat=a.action_repeat, batch_size=P, auto_reset=False)
-    eval_env = envs.create(a.env, backend=a.backend, episode_length=a.episode_length,
-                           action_repeat=a.action_repeat, batch_size=a.eval_batch,
-                           auto_reset=False)
+    def build(bs):
+        if not a.delayed_reward:
+            return envs.create(a.env, backend=a.backend, episode_length=a.episode_length,
+                               action_repeat=a.action_repeat, batch_size=bs,
+                               auto_reset=False)
+        from es.delayed import DelayedRewardWrapper
+        e = envs.get_environment(a.env, backend=a.backend)
+        e = DelayedRewardWrapper(e, a.episode_length)
+        return _wrap_batched(e, a.episode_length, a.action_repeat, bs)
+
+    env = build(P)
+    eval_env = build(a.eval_batch)
 
     spec = PolicySpec(obs_dim=env.observation_size, act_dim=env.action_size, hidden=hidden,
                       ac_bins=bins, ac_noise_std=0.01)
@@ -89,8 +104,8 @@ def main():
     rs = np.random.RandomState(a.seed)
     obstat = RunningStat((spec.obs_dim,), eps=1e-2)
 
-    rollout = make_pop_rollout(env, spec, a.episode_length, a.delayed_reward)
-    evaluate = make_pop_rollout(eval_env, eval_spec, a.episode_length, False)
+    rollout = make_pop_rollout(env, spec, a.episode_length)
+    evaluate = make_pop_rollout(eval_env, eval_spec, a.episode_length)
 
     hist = {'steps': [], 'eval': [], 'pop_mean': [], 'pop_max': [], 'iter': [],
             'wall': [], 'update_ratio': [], 'mean_len': []}
