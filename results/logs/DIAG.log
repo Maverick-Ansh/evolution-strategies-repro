@@ -1,0 +1,12 @@
+[es_swimmer_s0] env=swimmer backend=generalized D=6036 P=128 bins=10 obs=8 act=2 budget=1,500,000
+  it     1 steps       8,192 eval    -23.77 pop      1.46 len   64.0 cap   64 trunc 100%     0.3k sps
+  it     2 steps     136,192 eval     34.86 pop      2.96 len 1000.0 cap 1000 trunc   0%     2.8k sps
+  it     3 steps     264,192 eval     23.00 pop     10.18 len 1000.0 cap 1000 trunc   0%     4.1k sps
+  it     4 steps     392,192 eval     33.93 pop     17.50 len 1000.0 cap 1000 trunc   0%     4.9k sps
+  it     5 steps     520,192 eval     37.94 pop     19.46 len 1000.0 cap 1000 trunc   0%     5.4k sps
+  it     6 steps     648,192 eval     50.05 pop     26.41 len 1000.0 cap 1000 trunc   0%     5.8k sps
+  it     7 steps     776,192 eval     54.60 pop     35.20 len 1000.0 cap 1000 trunc   0%     6.1k sps
+  it     8 steps     904,192 eval     69.92 pop     37.97 len 1000.0 cap 1000 trunc   0%     6.3k sps
+  it     9 steps   1,032,192 eval    105.35 pop     49.46 len 1000.0 cap 1000 trunc   0%     6.5k sps
+  it    10 steps   1,160,192 eval    123.80 pop     62.02 len 1000.0 cap 1000 trunc   0%     6.6k sps
+  it    11 steps   1,288,192 eval    144.71 pop     70.30 len 1000.0 cap 1000 trunc   0%     6.8k sps

@@ -1,0 +1,5 @@
+[restart] results/es_inverted_pendulum_s0.json exists but is incomplete
+[es_inverted_pendulum_s0] env=inverted_pendulum backend=generalized D=4545 P=128 bins=0 obs=4 act=1 budget=10,000,000
+  it     2 steps       6,109 eval     38.30 pop     31.09 len   31.1 cap   64 trunc   2%     0.2k sps
+  it     4 steps      14,201 eval     37.18 pop     32.58 len   32.6 cap   64 trunc   2%     0.2k sps
+  it     6 steps      35,624 eval   1000.00 pop    128.00 len  128.0 cap  128 trunc 100%     0.4k sps

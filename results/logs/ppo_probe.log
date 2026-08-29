@@ -1,0 +1,11 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[ppo_probe] env=hopper preset=paper hidden=(64, 64) act=tanh budget=2,000,000
+  steps           0 eval      9.84  (40s)
+  steps     655,360 eval     84.41  (67s)
+  steps   1,310,720 eval    182.56  (72s)
+  steps   1,966,080 eval    248.83  (78s)
+  steps   2,621,440 eval    298.84  (84s)
+[ppo_probe] done in 84s -> /tmp/ppo_probe.json

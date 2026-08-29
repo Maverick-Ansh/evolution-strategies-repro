@@ -1,0 +1,29 @@
+
+=== (A) BANDWIDTH PER ITERATION (Sec. 2.1) ===
+Networks priced at the paper's own sizes. n = 1,440 workers (Sec. 4.3).
+policy                                                        D     ES bytes       PG bytes      ratio
+MuJoCo MLP 64-64 (Sec. 4.1), obs=17 act=6                 5,702      16.9 KB        31.3 MB      1901x
+MuJoCo MLP 256-256 (humanoid.json), obs=244 act=17      132,881      16.9 KB       729.9 MB     44294x
+Atari A3C-FF (Mnih et al. 2016), 4x84x84                680,770      16.9 KB         3.7 GB    226923x
+
+ES per-iteration traffic is independent of D: 16.9 KB regardless of network size.
+
+=== (B) POPULATION SCALING ON ONE T4 (hopper, horizon 128) ===
+       P     iter (s)    env-steps/s s per 1k pop efficiency
+      32        0.477          8,583      14.9137      1.00x
+      64        0.443         18,482       6.9256      2.15x
+     128        0.393         41,640       3.0740      4.85x
+     256        0.418         78,320       1.6343      9.13x
+     512        0.460        142,547       0.8979     16.61x
+    1024        0.547        239,451       0.5346     27.90x
+    2048        0.778        336,745       0.3801     39.24x
+    4096        1.495        350,757       0.3649     40.87x
+
+Peak throughput at P=4096 (350,757 env-steps/s). Below that, extra perturbations are close to free -- the GPU analogue of Fig. 1's linear speedup region.
+
+=== (C) MULTI-DEVICE SCALING (2 devices) ===
+  P=4096 on 1 GPU : 1.498s
+  P=4096 on 2 GPUs: 1.708s   speedup 0.88x
+  (ES exchanges nothing between devices during a rollout; only 24.0 KB of scalars are reduced afterwards)
+
+wrote results/scaling.json

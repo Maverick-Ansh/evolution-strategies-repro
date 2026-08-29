@@ -1,0 +1,9 @@
+28 runs, 25 still to do
+[launch gpu0] es_swimmer_s0
+[launch gpu1] es_swimmer_s1
+[launch gpu0] es_inverted_double_pendulum_s0
+[launch gpu1] es_inverted_double_pendulum_s1
+[done 1/25] es_swimmer_s1 rc=0 1725s OK
+[launch gpu1] ppo_inverted_double_pendulum_s1
+[done 2/25] es_swimmer_s0 rc=0 1740s OK
+[launch gpu1] es_inverted_pendulum_s0

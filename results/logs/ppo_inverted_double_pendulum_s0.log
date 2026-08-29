@@ -1,0 +1,31 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[ppo_inverted_double_pendulum_s0] env=inverted_double_pendulum preset=paper hidden=(64, 64) act=tanh budget=5,000,000 rs=10 disc=0.97 ent=0.01 unroll=5 envs=2048 bs=1024
+  steps           0 eval    142.04  (74s)
+  steps     327,680 eval    171.94  (137s)
+  steps     655,360 eval    211.35  (180s)
+  steps     983,040 eval    226.65  (224s)
+  steps   1,310,720 eval    330.88  (267s)
+  steps   1,638,400 eval    368.71  (310s)
+  steps   1,966,080 eval    378.55  (354s)
+  steps   2,293,760 eval    360.44  (397s)
+  steps   2,621,440 eval    426.09  (441s)
+  steps   2,949,120 eval    424.85  (484s)
+  steps   3,276,800 eval    408.91  (526s)
+  steps   3,604,480 eval    390.50  (568s)
+  steps   3,932,160 eval    419.71  (610s)
+  steps   4,259,840 eval    438.91  (653s)
+  steps   4,587,520 eval    413.33  (696s)
+  steps   4,915,200 eval    466.87  (739s)
+  steps   5,242,880 eval    524.31  (779s)
+  steps   5,570,560 eval    490.70  (814s)
+  steps   5,898,240 eval    494.51  (849s)
+  steps   6,225,920 eval    485.80  (884s)
+  steps   6,553,600 eval    488.20  (919s)
+  steps   6,881,280 eval    489.03  (953s)
+  steps   7,208,960 eval    510.30  (988s)
+  steps   7,536,640 eval    501.74  (1020s)
+  steps   7,864,320 eval    502.69  (1066s)
+[ppo_inverted_double_pendulum_s0] done in 1066s -> results/ppo_inverted_double_pendulum_s0.json

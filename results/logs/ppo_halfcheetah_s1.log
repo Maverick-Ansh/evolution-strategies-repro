@@ -1,0 +1,9 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[ppo_halfcheetah_s1] env=halfcheetah preset=paper hidden=(64, 64) act=tanh budget=5,000,000 rs=1 disc=0.95 ent=0.001 unroll=20 envs=2048 bs=512
+  steps           0 eval   -385.16  (98s)
+  steps     327,680 eval   -372.81  (217s)
+  steps     655,360 eval   -266.58  (293s)
+  steps     983,040 eval   -197.33  (369s)

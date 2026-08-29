@@ -1,0 +1,32 @@
+env=halfcheetah M=32 B=16 total episodes/horizon=512
+
+RAW trace(Cov[g]) -- the paper's quantity (Sec. 3.1)
+     T      PG(g=1.0)     PG(g=0.99)        ES(raw)       ES(rank)
+     8          593.3            544      9.859e+05      9.448e+04
+    16           4812           4091      9.422e+05      8.708e+04
+    32      3.229e+04      2.356e+04       8.84e+05      8.335e+04
+    64      1.707e+05       9.31e+04      9.348e+05      8.977e+04
+   128      8.508e+05      2.837e+05       9.15e+05      8.804e+04
+   256      3.396e+06      6.221e+05      9.085e+05      8.241e+04
+
+NORMALISED trace(Cov)/||E g||^2 -- estimator signal-to-noise
+     T      PG(g=1.0)     PG(g=0.99)        ES(raw)       ES(rank)
+     8          29.15          29.37          31.63          31.44
+    16          22.36          22.52          31.39             31
+    32          24.18          24.51          31.24          31.07
+    64          19.23          21.44          31.01          30.98
+   128          17.47          18.15          31.51          31.45
+   256          15.24          17.16          31.38          31.05
+
+SCALING EXPONENTS  (quantity ~ T^k)
+               trace(Cov)    ||E g||^2   normalised
+pg_g1.0            +2.492       +2.665       -0.174
+pg_g0.99           +2.032       +2.175       -0.143
+es_raw             -0.018       -0.017       -0.001
+es_rank            -0.024       -0.023       -0.001
+
+Sec. 3.1 predicts trace(Cov) ~ T^1 for policy gradients and T^0 for ES.
+The ES prediction is exact by construction: grad log p(theta~;theta) = eps/sigma
+carries no dependence on T, so any deviation from k=0 there is sampling noise.
+
+wrote results/variance_vs_T.json

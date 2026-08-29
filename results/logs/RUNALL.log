@@ -1,0 +1,1 @@
+/kaggle/working/run_all.sh: line 9: 17706 Killed                  python scripts/launch_sweep.py --which table1 --seeds 2 --es-steps 10000000 --pg-steps 5000000 --n-pairs 64 --gpus 2 --per-gpu 2 > results/logs/SWEEP.log 2>&1

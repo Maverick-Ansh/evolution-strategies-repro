@@ -1,0 +1,9 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[restart] results/ppo_inverted_double_pendulum_s1.json exists but is incomplete
+[ppo_inverted_double_pendulum_s1] env=inverted_double_pendulum preset=paper hidden=(64, 64) act=tanh budget=5,000,000 rs=10 disc=0.97 ent=0.01 unroll=5 envs=2048 bs=1024
+  steps           0 eval    114.93  (42s)
+  steps     327,680 eval    131.34  (85s)
+  steps     655,360 eval    143.51  (121s)

@@ -1,0 +1,32 @@
+Gym has been unmaintained since 2022 and does not support NumPy 2.0 amongst other critical functionality.
+Please upgrade to Gymnasium, the maintained drop-in replacement of Gym, or contact the authors of your software and request that they upgrade.
+Users of this version of Gym should be able to simply replace 'import gym' with 'import gymnasium as gym' in the vast majority of cases.
+See the migration guide at https://gymnasium.farama.org/introduction/migration_guide/ for additional information.
+[restart] results/ppo_swimmer_s1.json exists but is incomplete
+[ppo_swimmer_s1] env=swimmer preset=paper hidden=(64, 64) act=tanh budget=5,000,000 rs=1 disc=0.95 ent=0.001 unroll=20 envs=2048 bs=512
+  steps           0 eval     10.55  (35s)
+  steps     327,680 eval     20.91  (62s)
+  steps     655,360 eval     23.33  (80s)
+  steps     983,040 eval     25.68  (99s)
+  steps   1,310,720 eval     27.87  (118s)
+  steps   1,638,400 eval     29.58  (136s)
+  steps   1,966,080 eval     29.39  (157s)
+  steps   2,293,760 eval     31.98  (179s)
+  steps   2,621,440 eval     30.98  (201s)
+  steps   2,949,120 eval     27.71  (222s)
+  steps   3,276,800 eval     27.79  (246s)
+  steps   3,604,480 eval     28.36  (269s)
+  steps   3,932,160 eval     29.84  (292s)
+  steps   4,259,840 eval     33.44  (316s)
+  steps   4,587,520 eval     31.02  (339s)
+  steps   4,915,200 eval     13.07  (363s)
+  steps   5,242,880 eval     10.32  (386s)
+  steps   5,570,560 eval     19.99  (409s)
+  steps   5,898,240 eval     25.38  (432s)
+  steps   6,225,920 eval     28.37  (455s)
+  steps   6,553,600 eval     30.55  (481s)
+  steps   6,881,280 eval     30.08  (503s)
+  steps   7,208,960 eval     27.75  (525s)
+  steps   7,536,640 eval     27.63  (549s)
+  steps   7,864,320 eval     28.21  (572s)
+[ppo_swimmer_s1] done in 573s -> results/ppo_swimmer_s1.json
