@@ -42,9 +42,26 @@ print("== the ES gradient estimator (Alg. 1 line 5; es.py:242-247) ==")
 n, D = 64, 20
 key = jax.random.PRNGKey(0)
 eps = jax.random.normal(key, (n, D))
-g0 = es_gradient(shaped_weights(jnp.ones(n), jnp.ones(n), "centered_rank"), eps, 0.02)
-check("identical +/- returns => exactly zero update (no signal, no step)",
-      float(jnp.abs(g0).max()) < 1e-6)
+check("no signal => no step, for difference-based shaping",
+      float(jnp.abs(es_gradient(shaped_weights(jnp.ones(n), jnp.ones(n), "raw"), eps, 0.02)).max()) < 1e-6)
+
+# Antisymmetry is the invariant rank shaping actually preserves: relabelling which
+# half of the antithetic pair is "+" must flip the sign of the update.
+a = jax.random.uniform(jax.random.PRNGKey(9), (n,))
+b = jax.random.uniform(jax.random.PRNGKey(10), (n,))
+check("centered_rank is antisymmetric under swapping the +/- halves (Sec. 2.1)",
+      bool(jnp.allclose(shaped_weights(a, b, "centered_rank"),
+                        -shaped_weights(b, a, "centered_rank"), atol=1e-6)))
+
+# DISCOVERED QUIRK, recorded rather than asserted away: compute_ranks breaks ties by
+# index order, so an all-tied population (zero information about eps) yields a
+# systematic, non-zero update of -mean(eps)/2 rather than nothing. Harmless for
+# continuous returns, but it means the reference's shaping is not tie-safe -- e.g. a
+# task with a 0/1 reward and an all-zero population does NOT sit still.
+g_tie = es_gradient(shaped_weights(jnp.ones(n), jnp.ones(n), "centered_rank"), eps, 0.02)
+check("tie artifact is exactly -mean(eps)/2, as predicted from stable argsort",
+      bool(jnp.allclose(g_tie, -eps.mean(0) / 2, atol=1e-6)),
+      f"|g_tie|={float(jnp.abs(g_tie).max()):.4e}")
 
 g_raw = es_gradient(jnp.ones(n), eps, sigma=0.02, divide_by_sigma=False)
 g_sig = es_gradient(jnp.ones(n), eps, sigma=0.02, divide_by_sigma=True)
