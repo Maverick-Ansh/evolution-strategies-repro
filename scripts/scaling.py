@@ -156,17 +156,41 @@ def multi_device(env_name, backend, T, P, out):
 
     half = P // 2
     a0 = timed(half, devs[0]); a1 = timed(half, devs[1])
+
+    # Dispatching both from ONE Python thread measured 0.88x -- a slowdown -- because the
+    # two calls serialised on the host rather than overlapping on the two devices. That
+    # is a fact about a 4-CPU host driving two GPUs, not about ES, so we drive each
+    # device from its own thread and report both numbers.
+    import threading
+    res = {}
+
+    def drive(name, a_):
+        o = a_[0](a_[1], a_[2], a_[3], a_[4])
+        o['returns'].block_until_ready()
+        res[name] = True
+
     t = time.time()
-    o0 = a0[0](a0[1], a0[2], a0[3], a0[4])       # both dispatch asynchronously
+    o0 = a0[0](a0[1], a0[2], a0[3], a0[4])
     o1 = a1[0](a1[1], a1[2], a1[3], a1[4])
     o0['returns'].block_until_ready(); o1['returns'].block_until_ready()
+    two_serial = time.time() - t
+
+    t = time.time()
+    th = [threading.Thread(target=drive, args=('a', a0)),
+          threading.Thread(target=drive, args=('b', a1))]
+    [x.start() for x in th]
+    [x.join() for x in th]
     two = time.time() - t
+    print("  P={} on 2 GPUs, single-threaded dispatch: {:.3f}s  speedup {:.2f}x".format(
+        P, two_serial, one / two_serial))
     print("  P={} on 1 GPU : {:.3f}s".format(P, one))
-    print("  P={} on 2 GPUs: {:.3f}s   speedup {:.2f}x".format(P, two, one / two))
+    print("  P={} on 2 GPUs, threaded dispatch:      {:.3f}s  speedup {:.2f}x".format(
+        P, two, one / two))
     print("  (ES exchanges nothing between devices during a rollout; only {} of "
           "scalars are reduced afterwards)".format(human(perturbation_descriptor_bytes(P // 2))))
     out['multi_device'] = dict(P=P, one_gpu_s=one, two_gpu_s=two, speedup=one / two,
-                               n_devices=len(devs))
+                               two_gpu_serial_s=two_serial,
+                               speedup_serial=one / two_serial, n_devices=len(devs))
 
 
 def main():
