@@ -285,7 +285,99 @@ device programs from one Python thread serialised them (0.778 + 0.778 ≈ 1.56 s
 reports both numbers. Treat this row as a measurement of a 4-CPU host driving two GPUs, not
 as a property of ES.
 
-## 6. What was *not* tested
+## 6. The same argument, in the paradigm that exists now
+
+Sec. 3.1 does not say ES is better. It says ES is better *under three conditions*:
+
+> *"Evolution strategies is thus an attractive choice if the effective number of time steps
+> T is long, actions have long-lasting effects, and if no good value function estimates are
+> available."*
+
+That is a description of contemporary LLM post-training with verifiable rewards. The
+"episode" is a completion hundreds of tokens long; every token is an action whose effect is
+felt only at the end; the reward is one scalar from a verifier; and GRPO — the current
+default — *removes the value function on purpose*. So this 2017 paper makes a falsifiable
+prediction about a setting that did not exist when it was written, and it can be checked
+without running any RL at all.
+
+Following the paper's own factorization (Sec. 3.1), Var[R] is common to both estimators, so
+the entire claim reduces to the score terms. The ES side needs no experiment: ∇log p(θ̃;θ)
+= ε/σ, so trace(Cov) = D/σ² exactly, at every T. Only the PG side is empirical.
+
+Measured on **Qwen2.5-0.5B-Instruct**, θ = the 48 attention projections a LoRA would adapt
+(**D = 22,020,096**), 32 sampled completions, paired across prefix lengths:
+
+| T (generated tokens) | trace(Cov[PG score]) | ‖E[g]‖² |
+|---:|---:|---:|
+| 8 | 1.88e5 | 1.32e4 |
+| 16 | 3.00e5 | 2.44e4 |
+| 32 | 7.09e5 | 4.14e4 |
+| 64 | 1.41e6 | 9.57e4 |
+| 128 | 2.91e6 | 3.51e5 |
+| 256 | 9.10e6 | 2.65e6 |
+
+**PG score variance ∝ T^+1.109.**
+
+### 6.1 The paper's assumption is domain-dependent — and it is right about LLMs
+
+Sec. 3.1 justifies its claim by asserting the score is *"a sum of T uncorrelated terms"*,
+predicting an exponent of exactly +1. Measured here:
+
+| domain | exponent | verdict on the assumption |
+|---|---:|---|
+| HalfCheetah (Brax, §4.1) | **+2.49** | violated — per-step terms strongly positively correlated |
+| Qwen2.5-0.5B (this section) | **+1.11** | essentially exact |
+
+This is the reproduction's clearest new result. The paper's reasoning is *not* generally
+valid — in continuous control the state is heavily autocorrelated and consecutive score
+terms are far from independent, giving near-quadratic growth. But in a language model,
+consecutive per-token score terms behave almost exactly like the independent terms the
+paper assumed. **The 2017 argument is a better description of 2026 LLM post-training than
+of the 2017 MuJoCo tasks it was written about.**
+
+### 6.2 …and yet ES does not win here, for the reason the paper also anticipated
+
+The horizon channel favours ES, but it is swamped by the *dimension* channel. At T=256 with
+σ=0.02:
+
+* ES score variance: D/σ² = **5.51e10**
+* PG score variance: **9.10e6**
+* ES is **≈6,000× noisier**
+
+Extrapolating PG's fitted T^1.109 to where it would finally exceed ES gives a crossover at
+
+> **T\* ≈ 6.6 × 10⁵ generated tokens**
+
+which is three orders of magnitude beyond any realistic completion length. The crossover
+scales as roughly D^0.9, so the lever that matters is the size of the perturbed space, not
+the horizon:
+
+| perturbed parameters D | ES score variance | crossover T\* |
+|---|---:|---:|
+| rank-8 LoRA, ≈0.5M | 1.25e9 | ≈2.2e4 tokens |
+| ≈2M | 5.00e9 | ≈7.6e4 tokens |
+| q+v projections, 22.0M | 5.51e10 | ≈6.6e5 tokens |
+
+The paper predicted exactly this failure mode, in Sec. 3.2:
+
+> *"The resemblance of ES to finite differences suggests the method will scale poorly with
+> the dimension of the parameters θ. Theoretical analysis indeed shows that for general
+> non-smooth optimization problems, the required number of optimization steps scales
+> linearly with the dimension."*
+
+— while also arguing that what matters is the *intrinsic* dimension, not the raw parameter
+count. That is precisely the open question this measurement cannot settle: the accounting
+above uses raw D, and if LLM adaptation genuinely lives on a much lower-dimensional
+manifold, the effective ES variance is correspondingly smaller. **The honest conclusion is
+that the horizon argument transfers to LLMs essentially intact, and it is not enough on its
+own** — any ES-for-LLM method has to win on dimensionality, not on episode length.
+
+**Caveats.** σ is a free parameter and D/σ² scales as σ⁻²; σ=0.02 is the paper's MuJoCo
+value, carried over. This measures score-function variance under the paper's own
+factorization, not end-task learning curves — no ES-vs-GRPO training run was performed
+(see §7). And a single 0.5B model on one prompt family is a narrow slice.
+
+## 7. What was *not* tested
 
 - **Atari (Sec. 4.2, Table 2).** 51 games × 1B frames is far outside this budget. None of
   the Atari claims — including the virtual-batch-normalization result that is key finding
