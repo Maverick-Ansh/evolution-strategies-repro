@@ -85,13 +85,22 @@ def main():
     out = {}
     for env in sorted(set(es_runs) & set(pg_runs)):
         es, pg = es_runs[env], pg_runs[env]
-        init = floors.get(env, {}).get('init')
-        if init is None:
-            init = min(min(r['hist']['eval']) for r in es + pg)
-
         g_pg, m_pg, _ = curve_mean(pg)
         g_es, m_es, _ = curve_mean(es)
+        # "percentage of TRPO's learning progress" is measured from the PG arm's OWN
+        # starting score (that is how Table 3's 25% entries are recoverable). Using the
+        # measured init-net floor instead would compare the two arms against a baseline
+        # neither of them starts from -- PPO's initial policy is stochastic and scores
+        # well below a deterministic normc-initialised net.
+        init = float(m_pg[0])
         final_pg = float(np.max(np.maximum.accumulate(m_pg)))
+        if final_pg <= init + 1e-9:
+            print("{:<26s} {:>6s}  PG did not improve on its own initial score "
+                  "({:.1f} -> {:.1f}); no ratio is defined".format(
+                      env, "{}/{}".format(len(es), len(pg)), init, final_pg))
+            out[env] = {'init': init, 'final_pg': final_pg, 'pg_flat': True,
+                        'n_es': len(es), 'n_pg': len(pg), 'pcts': {}}
+            continue
 
         row, cells = {}, []
         for pct in PCTS:
@@ -113,8 +122,9 @@ def main():
                 ratio = t_es / t_pg
                 row[pct] = {'ratio': ratio, 'target': target, 't_pg': t_pg,
                             't_es': t_es, 'paper': paper}
-                cells.append("{:>16s}".format("{:.2f} [{}]".format(
-                    ratio, "-" if paper is None else "{:.2f}".format(paper))))
+                rs = "{:.3g}".format(ratio) if ratio < 0.1 else "{:.2f}".format(ratio)
+                cells.append("{:>16s}".format("{} [{}]".format(
+                    rs, "-" if paper is None else "{:.2f}".format(paper))))
         out[env] = {'init': init, 'final_pg': final_pg, 'n_es': len(es), 'n_pg': len(pg),
                     'pcts': row}
         print(("{:<26s} {:>6s} " + " ".join(["{:>16s}"] * len(PCTS))).format(
@@ -124,6 +134,8 @@ def main():
     print("{:<26s} {:>10s} {:>10s} {:>10s} {:>10s}".format(
         "env", "init-net", "random", "ES", "PG"))
     for env in sorted(out):
+        if out[env].get('pg_flat'):
+            continue
         fl = floors.get(env, {})
         es_f = float(np.mean([r['final_eval'] for r in es_runs[env]]))
         pg_f = float(np.mean([r['final_eval'] for r in pg_runs[env]]))

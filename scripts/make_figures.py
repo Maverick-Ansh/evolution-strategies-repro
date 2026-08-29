@@ -79,20 +79,20 @@ def fig_variance():
               ('es_rank', 'ES (centered rank)', ES_C, '--')]
     lt = np.log(np.array(Ts, float))
     for k, lab, c, ls in series:
-        y = np.array([rows[str(T)][k] for T in Ts], float)
+        y = np.array([rows[str(T)][k]['trace_cov'] for T in Ts], float)
         slope = np.polyfit(lt, np.log(y), 1)[0]
         a1.loglog(Ts, y, ls, color=c, marker='o', ms=3, lw=1.3,
                   label="{}  (k={:+.2f})".format(lab, slope))
-    a1.set_xlabel('horizon T'); a1.set_ylabel('trace(Cov[g]) / ||E[g]||$^2$')
+    a1.set_xlabel('horizon T'); a1.set_ylabel('trace(Cov[g])')
     a1.set_title('Gradient-estimator noise vs horizon\n(Sec. 3.1: PG ~ T, ES ~ const)',
                  fontsize=8)
     a1.legend(fontsize=6, frameon=False)
 
     for k, lab, c, ls in series:
-        y = np.array([rows[str(T)][k] for T in Ts], float)
-        a2.semilogx(Ts, y / y[0], ls, color=c, marker='o', ms=3, lw=1.3, label=lab)
-    a2.set_xlabel('horizon T'); a2.set_ylabel('noise relative to T={}'.format(Ts[0]))
-    a2.set_title('Same data, normalised at the shortest horizon', fontsize=8)
+        y = np.array([rows[str(T)][k]['norm_var'] for T in Ts], float)
+        a2.semilogx(Ts, y, ls, color=c, marker='o', ms=3, lw=1.3, label=lab)
+    a2.set_xlabel('horizon T'); a2.set_ylabel('trace(Cov[g]) / ||E[g]||$^2$')
+    a2.set_title('Normalised: signal grows too, so SNR does not cross', fontsize=8)
     a2.legend(fontsize=6, frameon=False)
     fig.tight_layout(); fig.savefig('figures/variance_vs_T.png', bbox_inches='tight')
     print('figures/variance_vs_T.png')
