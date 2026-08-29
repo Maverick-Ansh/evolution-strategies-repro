@@ -55,12 +55,13 @@ def pg_cmd(env, seed, steps, tag, **kw):
     return c
 
 
-def build_runs(which, seeds, es_steps, pg_steps, npairs):
+def build_runs(which, seeds, es_steps, pg_steps, npairs, eval_every=2):
     runs = []
     if 'table1' in which:
         for env, s in itertools.product(TABLE1, range(seeds)):
             runs.append((es_cmd(env, s, es_steps, 'es_{}_s{}'.format(env, s),
-                                n_pairs=npairs), 'es_{}_s{}'.format(env, s)))
+                                n_pairs=npairs, eval_every=eval_every),
+                         'es_{}_s{}'.format(env, s)))
             runs.append((pg_cmd(env, s, pg_steps, 'ppo_{}_s{}'.format(env, s)),
                          'ppo_{}_s{}'.format(env, s)))
             if env in SAC_ENVS:
@@ -124,6 +125,10 @@ def main():
     p.add_argument('--es-steps', type=int, default=20_000_000)
     p.add_argument('--pg-steps', type=int, default=5_000_000)
     p.add_argument('--n-pairs', type=int, default=128)
+    # ES eval cadence sets the RESOLUTION of the Table-1 ratio: at every 10
+    # iterations the first eval already lands ~1.3M timesteps in, and ES can
+    # clear the PG target before it, which left-censors every cell.
+    p.add_argument('--eval-every', type=int, default=2)
     p.add_argument('--gpus', type=int, default=2)
     p.add_argument('--per-gpu', type=int, default=2)
     p.add_argument('--mem-fraction', type=float, default=0.42)
@@ -132,7 +137,8 @@ def main():
 
     os.chdir(ROOT)
     os.makedirs('results/logs', exist_ok=True)
-    runs = build_runs(a.which.split(','), a.seeds, a.es_steps, a.pg_steps, a.n_pairs)
+    runs = build_runs(a.which.split(','), a.seeds, a.es_steps, a.pg_steps,
+                      a.n_pairs, a.eval_every)
     def finished(t):
         f = 'results/{}.json'.format(t)
         if not os.path.exists(f):
