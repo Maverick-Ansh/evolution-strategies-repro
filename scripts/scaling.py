@@ -47,6 +47,16 @@ from es.rollout import make_pop_rollout
 from es.noise import perturbation_descriptor_bytes, gradient_broadcast_bytes
 
 
+def atari_a3c_ff_params(n_actions: int = 18) -> int:
+    """Exact parameter count of the Atari policy the paper reuses (Sec. 4.2)."""
+    c1 = 4 * 16 * 8 * 8 + 16                 # conv 16, 8x8, stride 4
+    c2 = 16 * 32 * 4 * 4 + 32                # conv 32, 4x4, stride 2
+    flat = 32 * 9 * 9                        # 84 -> 20 -> 9
+    fc = flat * 256 + 256
+    out = 256 * n_actions + n_actions
+    return c1 + c2 + fc + out
+
+
 def human(n):
     for u in ['B', 'KB', 'MB', 'GB']:
         if n < 1024:
@@ -64,7 +74,10 @@ def bandwidth_table(out):
          PolicySpec(17, 6, (64, 64)).num_params),
         ("MuJoCo MLP 256-256 (humanoid.json), obs=244 act=17",
          PolicySpec(244, 17, (256, 256)).num_params),
-        ("Atari CNN (Mnih et al. 2016 arch, approx)", 1_686_000),
+        # Sec. 4.2: "We used the same preprocessing and feedforward CNN architecture
+        # used by Mnih et al. [2016]" -- A3C-FF on 4x84x84:
+        #   conv 16 8x8 s4 -> conv 32 4x4 s2 -> FC 256 -> |A|=18
+        ("Atari A3C-FF (Mnih et al. 2016), 4x84x84", atari_a3c_ff_params()),
     ]
     n_workers = 1440
     rows = []
