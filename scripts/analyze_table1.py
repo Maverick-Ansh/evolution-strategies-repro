@@ -12,9 +12,14 @@ progress is interpolated between the score at timestep zero and the final score:
     target(p) = init + p * (final_PG - init)
 
 Check on Hopper: 100% = 3403.46 and 25% = 877.45 imply init = 35.4, which then predicts
-50% = 1719.4 against the paper's listed 1718.16. So `init` is the random-policy score,
-which is why scripts/env_floor.py measures it explicitly rather than reading it off the
-first noisy point of a learning curve.
+50% = 1719.4 against the paper's listed 1718.16 -- so the definition is right.
+
+`init` is taken from the PG arm's OWN first evaluation, not from the measured init-net
+floor in env_floor.json. The two are not interchangeable: the floor is a deterministic
+normc-initialised network, while PPO starts from a stochastic policy that scores well
+below it (on InvertedDoublePendulum, 431.9 vs PPO's own start). Since the target is a
+fraction of *the PG arm's* learning progress, it has to be anchored where that arm
+actually started. env_floor.json is still used to bracket the final scores.
 
 Censoring is reported, never hidden: if an arm never reaches a target inside its budget
 the cell reads ">N.NN" and the true ratio is larger. Dropping those rows would silently
